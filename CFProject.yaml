@@ -5,7 +5,7 @@ Parameters:
   EnvironmentName:
     Type: String
     Description: An environment name that will be prefixed to resource names.
-    Default: "Prod"
+    Default: "yourenvironment"
 
 Resources:
   VPC:
@@ -233,7 +233,7 @@ Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${EnvironmentName}-private-bucket"
+      BucketName: !Sub "${EnvironmentName.toLowerCase()}-private-bucket"
       AccessControl: Private
 
   RDSSubnetGroup:
