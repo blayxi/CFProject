@@ -233,7 +233,7 @@ Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${EnvironmentName.toLowerCase()}-private-bucket"
+      BucketName: !Sub "${EnvironmentName}-private-bucket"
       AccessControl: Private
 
   RDSSubnetGroup:
