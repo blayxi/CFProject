@@ -5,13 +5,75 @@ Parameters:
   EnvironmentName:
     Type: String
     Description: An environment name that will be prefixed to resource names.
-    Default: "yourenvironment"
+    Default: "blaycfproject"
+  
+  VpcCidr:
+    Type: String
+    Default: "10.0.0.0/16"
+    Description: CIDR block for the VPC.
+
+  PublicSubnet1Cidr:
+    Type: String
+    Default: "10.0.1.0/24"
+    Description: CIDR block for the first public subnet.
+
+  PublicSubnet2Cidr:
+    Type: String
+    Default: "10.0.2.0/24"
+    Description: CIDR block for the second public subnet.
+
+  InstanceType:
+    Type: String
+    Default: "t2.micro"
+    Description: EC2 instance type.
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances.
+
+  ImageId:
+    Type: String
+    Default: "ami-0ea0f5ebb8ddde754"
+    Description: AMI ID for the EC2 instances.
+
+  MinSize:
+    Type: Number
+    Default: 2
+    Description: Minimum number of instances in the Auto Scaling Group.
+
+  MaxSize:
+    Type: Number
+    Default: 4
+    Description: Maximum number of instances in the Auto Scaling Group.
+
+  DesiredCapacity:
+    Type: Number
+    Default: 2
+    Description: Desired capacity of instances in the Auto Scaling Group.
+
+  DBUsername:
+    Type: String
+    NoEcho: true
+    Description: The database admin account username.
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Description: The database admin account password.
+    MinLength: 8
+    MaxLength: 41
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: must contain only alphanumeric characters.
 
 Resources:
   VPC:
     Type: AWS::EC2::VPC
     Properties: 
-      CidrBlock: 10.0.0.0/16
+      CidrBlock: !Ref VpcCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
       Tags:
@@ -22,7 +84,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: 10.0.1.0/24
+      CidrBlock: !Ref PublicSubnet1Cidr
       MapPublicIpOnLaunch: true
       AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
@@ -33,7 +95,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: 10.0.2.0/24
+      CidrBlock: !Ref PublicSubnet2Cidr
       MapPublicIpOnLaunch: true
       AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
@@ -139,12 +201,13 @@ Resources:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateData:
-        InstanceType: t2.micro
-        ImageId: ami-0c55b159cbfafe1f0
+        InstanceType: !Ref InstanceType
+        ImageId: !Ref ImageId
         SecurityGroupIds:
           - !Ref EC2SecurityGroup
         IamInstanceProfile:
           Name: !Ref EC2InstanceProfile
+        KeyName: !Ref KeyName
         UserData: !Base64 |
           #!/bin/bash
           yum update -y
@@ -186,9 +249,9 @@ Resources:
       LaunchTemplate:
         LaunchTemplateId: !Ref LaunchTemplate
         Version: 1
-      MinSize: 2
-      MaxSize: 4
-      DesiredCapacity: 2
+      MinSize: !Ref MinSize
+      MaxSize: !Ref MaxSize
+      DesiredCapacity: !Ref DesiredCapacity
       TargetGroupARNs:
         - !Ref ALBTargetGroup
 
@@ -246,3 +309,37 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-RDSSubnetGroup"
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties: 
+      DBName: !Sub "${EnvironmentName}DB"
+      AllocatedStorage: 20
+      DBInstanceClass: db.t2.micro
+      Engine: MySQL
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      PubliclyAccessible: true
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+  PublicSubnet1Id:
+    Description: Public Subnet 1 ID
+    Value: !Ref PublicSubnet1
+  PublicSubnet2Id:
+    Description: Public Subnet 2 ID
+    Value: !Ref PublicSubnet2
+  ALBName:
+    Description: ALB Name
+    Value: !Ref ALB
+  ALBDNSName:
+    Description: ALB DNS Name
+    Value: !GetAtt ALB.DNSName
+  RDSInstanceEndpoint:
+    Description: RDS Instance Endpoint
+    Value: !GetAtt RDSInstance.Endpoint.Address
